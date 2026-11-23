@@ -1,0 +1,26 @@
+{
+  "name": "utopia-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Authoritative multiplayer server for Utopia (2D open-world roleplay)",
+  "type": "module",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "migrate": "node src/db/migrate.ts",
+    "test": "node --test --test-concurrency=1 test/",
+    "bot": "node tools/bot.ts"
+  },
+  "dependencies": {
+    "pg": "^8.23.1",
+    "ws": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.2",
+    "typescript": "^7.0.2"
+  }
+}
