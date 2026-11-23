@@ -5,10 +5,10 @@ import { startServer, type RunningServer } from '../src/net/server.ts';
 
 export const TEST_DB = process.env.TEST_DATABASE_URL ?? 'postgres://localhost:5432/utopia_test';
 
-export async function startTestServer(): Promise<RunningServer> {
+export async function startTestServer(opts: { adminUsernames?: string[] } = {}): Promise<RunningServer> {
   const srv = await startServer({
     databaseUrl: TEST_DB, port: 0, worldPath: resolve(ROOT, '..', 'shared', 'world', 'district1.json'),
-    npcs: 10, traffic: 4, adminUsernames: [], log: () => {},
+    npcs: 10, traffic: 4, adminUsernames: opts.adminUsernames ?? [], log: () => {},
   });
   await srv.db.query('TRUNCATE accounts, sessions, bans, characters, inventory_items, vehicles, transactions, criminal_records, admin_audit RESTART IDENTITY CASCADE');
   // Vehicles loaded from a previous run were truncated; drop owned ones from memory too.

@@ -109,8 +109,11 @@ export class Repo {
     return r.rows[0] ?? null;
   }
 
-  async promoteAdmins(usernames: string[]) {
-    if (usernames.length) await this.db.query(`UPDATE accounts SET role = 'admin' WHERE username = ANY($1)`, [usernames]);
+  /** Grants admin to the configured usernames. Returns the usernames that exist. */
+  async promoteAdmins(usernames: string[]): Promise<string[]> {
+    if (!usernames.length) return [];
+    const r = await this.db.query(`UPDATE accounts SET role = 'admin' WHERE username = ANY($1) RETURNING username`, [usernames]);
+    return r.rows.map(x => x.username);
   }
 
   // ---- characters -----------------------------------------------------------------

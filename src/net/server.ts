@@ -44,6 +44,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   });
   const wss = new WebSocketServer({ server: http, maxPayload: MAX_MESSAGE_BYTES });
   let nextSession = 1;
+  const admins = (opts.adminUsernames ?? []).map(a => a.trim().toLowerCase()).filter(Boolean);
   const authAttempts = new Map<string, number[]>();
 
   wss.on('connection', (ws: WebSocket, req) => {
@@ -64,6 +65,12 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     };
 
     const finishAuth = async (account: { id: number; username: string; role: any }, token?: string) => {
+      // ADMIN_USERNAMES applies on every login, so it works no matter when the account was created.
+      if (account.role !== 'admin' && admins.includes(account.username.toLowerCase())) {
+        await repo.promoteAdmins([account.username.toLowerCase()]);
+        account = { ...account, role: 'admin' };
+        log(`granted admin to ${account.username} (ADMIN_USERNAMES)`);
+      }
       const ban = await repo.activeBan(account.id);
       if (ban) throw new GameError(`Account banned${ban.expires_at ? ` until ${new Date(ban.expires_at).toISOString()}` : ''}: ${ban.reason}`);
       session.account = account;
@@ -144,7 +151,13 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     for (const ws of wss.clients) { if (!alive.get(ws)) { ws.terminate(); continue; } alive.set(ws, false); ws.ping(); }
   }, 15_000);
 
-  await repo.promoteAdmins(opts.adminUsernames ?? []);
+  if (admins.length) {
+    const found = await repo.promoteAdmins(admins);
+    const missing = admins.filter(a => !found.includes(a));
+    log(`admin accounts: ${found.join(', ') || '(none yet)'}${missing.length ? ` — not registered yet: ${missing.join(', ')} (promoted when they log in)` : ''}`);
+  } else {
+    log('ADMIN_USERNAMES is not set — no admin accounts configured');
+  }
   await new Promise<void>(r => http.listen(opts.port, r));
   const port = (http.address() as AddressInfo).port;
   log(`Utopia server listening on :${port} (${world.vehicles.size} vehicles, ${world.npcs.size} pedestrians)`);
