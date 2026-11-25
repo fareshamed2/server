@@ -33,15 +33,16 @@ export function onInteract(w: GameWorld, p: Player, m: any) {
   const jobsHere = Object.values(JOBS).filter(j => j.building === b.type && j.id !== 'unemployed').map(j => j.id);
   const licensesHere = Object.entries(LICENSES).filter(([, l]) => l.building === b.type).map(([id]) => id);
   const base = { t: 'panel', building: { id: b.id, type: b.type, name: b.name }, jobs: jobsHere, licenses: licensesHere };
+  if (b.property) return w.housing.sendPanel(p, b);
   switch (b.type) {
+    case 'realestate': return w.housing.sendListings(p, b);
     case 'bank': return sendBankPanel(w, p, false, b);
     case 'dealership': return p.session.send({ ...base, kind: 'dealership', vehicles: Object.values(VEHICLES).filter(v => v.price > 0).map(v => v.id) });
     case 'clothing': return p.session.send({ ...base, kind: 'clothing', price: 120, appearance: p.appearance });
     case 'police':
       return p.session.send({ ...base, kind: 'police_station', fine: p.wanted > 0 ? p.wanted * 800 : 0 });
     case 'hospital': return p.session.send({ ...base, kind: 'hospital', healPrice: 150 });
-    case 'mechanic': case 'apartments': case 'house': case 'realestate':
-      return p.session.send({ ...base, kind: b.type === 'mechanic' ? 'mechanic' : 'garage' });
+    case 'mechanic': return p.session.send({ ...base, kind: 'mechanic' });
     default:
       if (shop) return p.session.send({ ...base, kind: 'shop', shop });
       if (jobsHere.length || licensesHere.length) return p.session.send({ ...base, kind: 'office' });
@@ -126,7 +127,7 @@ export function onBuyLicense(w: GameWorld, p: Player, m: any) {
   });
 }
 
-function freeSpotNear(w: GameWorld, x: number, y: number, r: number) {
+export function freeSpotNear(w: GameWorld, x: number, y: number, r: number) {
   for (let ring = 0; ring < 8; ring++)
     for (let k = 0; k < 12; k++) {
       const a = (k / 12) * Math.PI * 2, d = ring * 40;
@@ -158,14 +159,17 @@ export function onBuyVehicle(w: GameWorld, p: Player, m: any) {
 
 async function sendGarage(w: GameWorld, p: Player) {
   const rows = await w.repo.ownedVehicles(p.charId);
-  p.session.send({ t: 'garage', vehicles: rows.map(r => ({ id: r.id, model: r.model, plate: r.plate, color: r.color, stored: r.stored, fuel: r.fuel, engine: r.engine })) });
+  const homeName = (id: number | null) => { const pr = id ? w.housing.props.get(id) : null; const b = pr ? w.map.buildingById(pr.building_id) : null; return b?.name ?? null; };
+  p.session.send({ t: 'garage', vehicles: rows.map(r => ({ id: r.id, model: r.model, plate: r.plate, color: r.color, stored: r.stored, fuel: r.fuel, engine: r.engine, home: homeName(r.garage_property_id) })) });
 }
 
 export function onGarage(w: GameWorld, p: Player, m: any) {
   return w.exclusive(p, async () => {
-    const garageTypes = ['mechanic', 'apartments', 'house', 'realestate', 'dealership'];
+    const garageTypes = ['mechanic', 'apartments', 'house', 'mansion', 'realestate', 'dealership'];
     if (m.op === 'list') return sendGarage(w, p);
-    requireNear(w, p, garageTypes, 'a garage (home, apartments, mechanic or dealership)');
+    const gb = requireNear(w, p, garageTypes, 'a garage (home, apartments, mechanic or dealership)');
+    // House and mansion garages are private: only the owner and key holders can use them.
+    if (!w.housing.canUseGarage(p, gb)) throw new GameError('This is a private garage');
     if (m.op === 'store') {
       const v = [...w.vehicles.values()].find(v => v.dbId === Number(m.id) && v.ownerCharId === p.charId);
       if (!v) throw new GameError('Vehicle not found');
@@ -178,6 +182,10 @@ export function onGarage(w: GameWorld, p: Player, m: any) {
       const rows = await w.repo.ownedVehicles(p.charId);
       const row = rows.find(r => r.id === Number(m.id));
       if (!row || !row.stored) throw new GameError('That vehicle is not in storage');
+      if (row.garage_property_id) {
+        const pr = w.housing.props.get(row.garage_property_id);
+        throw new GameError(tr('This car is parked at {0}', (pr && w.map.buildingById(pr.building_id)?.name) ?? 'home'));
+      }
       const spot = freeSpotNear(w, p.x, p.y - 60, VEHICLES[row.model].length / 2);
       row.x = spot.x; row.y = spot.y; row.stored = false; row.locked = false;
       await w.repo.saveVehicle({ dbId: row.id, x: spot.x, y: spot.y, rot: row.rot, fuel: row.fuel, engine: row.engine, locked: false, stored: false });

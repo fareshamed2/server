@@ -64,6 +64,57 @@ export const ITEMS: Record<string, ItemDef> = {
 
 export const MAX_CARRY_WEIGHT = 40;
 
+/** Housing rules. Prices/rents come from the world file (tools/gen_world.mjs). */
+export const HOUSING = {
+  maxPerCharacter: 3,           // owned + rented units
+  taxRatePerDay: 0.0025,        // owned homes: 0.25% of the price per real day, charged from the bank
+  taxLockoutRatio: 0.02,        // unpaid tax above 2% of the price blocks the stash until paid
+  sellBackRatio: 0.7,           // selling to the city returns 70% of the price (minus unpaid tax)
+  rentDays: [1, 3, 7],
+  maxKeys: 4,
+  restCooldownMs: 5 * 60_000,
+  offerTtlMs: 60_000,
+  storageKg: { trailer: 30, apartment: 60, house: 120, mansion: 300 } as Record<string, number>,
+  garageSlots: { trailer: 0, apartment: 0, house: 2, mansion: 6 } as Record<string, number>,
+  // Gun locker: number of weapons it holds; ammo up to 200 rounds per slot.
+  armorySlots: { trailer: 2, apartment: 4, house: 8, mansion: 20 } as Record<string, number>,
+  armoryAmmoPerSlot: 200,
+  garageRange: 300,              // a car must be this close to the front door to be parked inside
+  party: { cost: 500, durationMs: 15 * 60_000, cooldownMs: 30 * 60_000 },
+};
+
+/** Home decoration: each slot has options; the first option of every slot is the free default. */
+export const DECOR: Record<string, { name: string; options: { id: string; name: string; price: number; color: string }[] }> = {
+  floor:   { name: 'Floor', options: [
+    { id: 'wood', name: 'Oak planks', price: 0, color: '#a9825a' }, { id: 'walnut', name: 'Dark walnut', price: 1500, color: '#5d4037' },
+    { id: 'tile', name: 'White tiles', price: 2500, color: '#e0e0e0' }, { id: 'marble', name: 'Marble', price: 9000, color: '#ece6dc' },
+    { id: 'carpet', name: 'Blue carpet', price: 1800, color: '#3f5a7a' } ] },
+  wall:    { name: 'Walls', options: [
+    { id: 'cream', name: 'Cream', price: 0, color: '#e9e4da' }, { id: 'sage', name: 'Sage green', price: 800, color: '#b7c7a6' },
+    { id: 'navy', name: 'Navy', price: 800, color: '#2c3e5c' }, { id: 'blush', name: 'Blush pink', price: 800, color: '#e8c4c4' },
+    { id: 'charcoal', name: 'Charcoal', price: 800, color: '#3b3f45' } ] },
+  sofa:    { name: 'Sofa', options: [
+    { id: 'grey', name: 'Grey fabric', price: 0, color: '#5d6d7e' }, { id: 'leather', name: 'Brown leather', price: 3200, color: '#6d4c41' },
+    { id: 'velvet', name: 'Emerald velvet', price: 4500, color: '#1e7a5a' }, { id: 'white', name: 'White designer', price: 6800, color: '#f2f2f2' } ] },
+  bed:     { name: 'Bed', options: [
+    { id: 'blue', name: 'Blue covers', price: 0, color: '#3f6c8f' }, { id: 'red', name: 'Royal red', price: 1200, color: '#7a2e3b' },
+    { id: 'black', name: 'Black satin', price: 2400, color: '#1c1c1c' }, { id: 'gold', name: 'Gold silk', price: 5200, color: '#c9a44c' } ] },
+  rug:     { name: 'Rug', options: [
+    { id: 'none', name: 'No rug', price: 0, color: '#00000000' }, { id: 'crimson', name: 'Crimson rug', price: 900, color: '#9c3d54' },
+    { id: 'persian', name: 'Persian rug', price: 3600, color: '#8e4a2e' }, { id: 'zebra', name: 'Zebra rug', price: 2200, color: '#eeeeee' } ] },
+  art:     { name: 'Wall art', options: [
+    { id: 'none', name: 'Bare walls', price: 0, color: '#00000000' }, { id: 'abstract', name: 'Abstract canvas', price: 1400, color: '#e67e22' },
+    { id: 'skyline', name: 'City skyline print', price: 2100, color: '#2980b9' }, { id: 'gold', name: 'Gold-framed portrait', price: 7500, color: '#d4ac0d' } ] },
+  plants:  { name: 'Plants', options: [
+    { id: 'few', name: 'Two plants', price: 0, color: '#2e7d32' }, { id: 'jungle', name: 'Indoor jungle', price: 1600, color: '#1b5e20' },
+    { id: 'none', name: 'No plants', price: 0, color: '#00000000' } ] },
+  tv:      { name: 'TV', options: [
+    { id: 'small', name: '40-inch TV', price: 0, color: '#111111' }, { id: 'big', name: '85-inch TV', price: 4200, color: '#000000' },
+    { id: 'cinema', name: 'Home cinema', price: 12000, color: '#0a0a0a' } ] },
+  aquarium:{ name: 'Aquarium', options: [
+    { id: 'none', name: 'No aquarium', price: 0, color: '#00000000' }, { id: 'tank', name: 'Tropical aquarium', price: 5400, color: '#29b6f6' } ] },
+};
+
 export type VehicleDef = {
   id: string; name: string; kind: 'car' | 'police' | 'ambulance' | 'motorcycle' | 'truck' | 'van' | 'taxi' | 'firetruck';
   price: number; maxSpeed: number; accel: number; turn: number; length: number; width: number;
@@ -100,6 +151,9 @@ export const SHOPS: ShopDef[] = [
     { item: 'p9', price: 2400 }, { item: 'vx9', price: 6500 }, { item: 'ar7', price: 14000 }, { item: 'ls50', price: 22000 },
     { item: 'ammo_9mm', price: 4 }, { item: 'ammo_556', price: 6 }, { item: 'ammo_308', price: 12 }, { item: 'lockpick', price: 250 } ],
     sells: [ { item: 'jewelry', price: 420 }, { item: 'electronics', price: 160 } ] },
+  { id: 'mall', buildingType: 'mall', name: 'Grand Utopia Mall', items: [
+    { item: 'coffee', price: 5 }, { item: 'soda', price: 6 }, { item: 'sandwich', price: 11 }, { item: 'burger', price: 15 },
+    { item: 'bandage', price: 28 }, { item: 'medkit', price: 130 }, { item: 'repairkit', price: 380 }, { item: 'electronics', price: 260 } ] },
   { id: 'scrap', buildingType: 'warehouse', name: 'Pier 9 Buyers', items: [], sells: [ { item: 'scrap', price: 35 }, { item: 'electronics', price: 110 } ] },
 ];
 
@@ -141,5 +195,5 @@ export const ECONOMY = {
 };
 
 export function catalog() {
-  return { weapons: WEAPONS, items: ITEMS, vehicles: VEHICLES, shops: SHOPS, licenses: LICENSES, jobs: JOBS, economy: ECONOMY, maxCarryWeight: MAX_CARRY_WEIGHT };
+  return { weapons: WEAPONS, items: ITEMS, vehicles: VEHICLES, shops: SHOPS, licenses: LICENSES, jobs: JOBS, economy: ECONOMY, maxCarryWeight: MAX_CARRY_WEIGHT, housing: HOUSING, decor: DECOR };
 }

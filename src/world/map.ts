@@ -1,11 +1,14 @@
 import { readFileSync } from 'node:fs';
 
 export type Rect = { x: number; y: number; w: number; h: number };
+export type PropertyMeta = { kind: 'trailer' | 'apartment' | 'house' | 'mansion'; units: number; price: number; rent: number; storage: number; garage: number };
 export type Building = {
   id: number; type: string; name: string; rect: Rect; door: { x: number; y: number; side: string };
   roof: string; roofStyle: string; height: number; zone: string; interactive: boolean;
+  property?: PropertyMeta;
 };
 export type WorldData = {
+  version?: number;
   tileSize: number; width: number; height: number; rows: string[];
   buildings: Building[]; solids: (Rect & { kind: string })[];
   props: { parkingSpots: { x: number; y: number; rot: number; kind: string }[]; pumps: { x: number; y: number }[]; [k: string]: unknown };

@@ -181,7 +181,7 @@ export class Repo {
    * Throws GameError (and changes nothing) if any balance or stack would go negative,
    * or if the resulting carry weight exceeds the limit (when items are added).
    */
-  async mutate(charId: number, change: { cash?: number; bank?: number; items?: Record<string, number>; licenses?: string[] },
+  async mutate(charId: number, change: { cash?: number; bank?: number; items?: Record<string, number>; licenses?: string[]; force?: boolean },
                kind: string, memo: string | null = null, counterparty: number | null = null, tx?: Tx) {
     const run = async (t: Tx) => {
       const cash = Math.trunc(change.cash ?? 0), bank = Math.trunc(change.bank ?? 0);
@@ -196,12 +196,13 @@ export class Repo {
         if (!def || !Number.isInteger(d)) throw new GameError('Unknown item');
         const next = (inv[item] ?? 0) + d;
         if (next < 0) throw new GameError(tr('Not enough {0}', def.name));
-        if (next > def.stack) throw new GameError(tr('You can\'t carry more {0}', def.name));
+        if (next > def.stack && !change.force) throw new GameError(tr('You can\'t carry more {0}', def.name));
         if (d > 0) adding = true;
         if (next === 0) { delete inv[item]; await t.query('DELETE FROM inventory_items WHERE character_id=$1 AND item_id=$2', [charId, item]); }
         else { inv[item] = next; await t.query('INSERT INTO inventory_items(character_id,item_id,qty) VALUES ($1,$2,$3) ON CONFLICT (character_id,item_id) DO UPDATE SET qty = EXCLUDED.qty', [charId, item, next]); }
       }
-      if (adding && inventoryWeight(inv) > MAX_CARRY_WEIGHT) throw new GameError('Inventory too heavy');
+      // `force` (returning a lost stash) may exceed the weight limit; items are never destroyed.
+      if (adding && !change.force && inventoryWeight(inv) > MAX_CARRY_WEIGHT) throw new GameError('Inventory too heavy');
       let licenses: string[] = cur.licenses;
       if (change.licenses?.length) {
         licenses = [...new Set([...cur.licenses, ...change.licenses])];

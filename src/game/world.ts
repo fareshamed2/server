@@ -9,6 +9,7 @@ import * as jobs from './jobs.ts';
 import * as npcs from './npc.ts';
 import * as chat from './chat.ts';
 import * as admin from './admin.ts';
+import { Housing } from './housing.ts';
 import { tr, wire, type Text } from './i18n.ts';
 
 const WALK_SPEED = 150;
@@ -32,11 +33,14 @@ export class GameWorld {
   private timers: NodeJS.Timeout[] = [];
   log: (...a: unknown[]) => void = console.log;
 
-  constructor(map: WorldMap, repo: Repo) { this.map = map; this.repo = repo; }
+  readonly housing: Housing;
+
+  constructor(map: WorldMap, repo: Repo) { this.map = map; this.repo = repo; this.housing = new Housing(this); }
 
   nextId(prefix: string) { return `${prefix}${this.seq++}`; }
 
   async init(opts: { npcs?: number; traffic?: number } = {}) {
+    await this.housing.init();
     // Persistent player-owned vehicles that were left in the world.
     for (const row of await this.repo.allPersistentVehicles()) this.addOwnedVehicle(row);
     // Public parked cars & job vehicles at their depots.
@@ -46,8 +50,8 @@ export class GameWorld {
       const model = civ[Math.floor(Math.random() * civ.length)];
       this.addVehicle({ kind: 'public', model, x: s.x, y: s.y, rot: s.rot, locked: Math.random() < 0.4, home: { x: s.x, y: s.y, rot: s.rot } });
     }
-    npcs.spawnPedestrians(this, opts.npcs ?? 45);
-    npcs.spawnTraffic(this, opts.traffic ?? 16);
+    npcs.spawnPedestrians(this, opts.npcs ?? 90);
+    npcs.spawnTraffic(this, opts.traffic ?? 32);
   }
 
   start() {
@@ -120,11 +124,14 @@ export class GameWorld {
     this.sendStats(p); this.sendInventory(p);
     this.repo.ownedVehicles(p.charId).then(v => p.session.send({ t: 'garage', vehicles: v.map(r => ({ id: r.id, model: r.model, plate: r.plate, color: r.color, stored: r.stored, fuel: r.fuel, engine: r.engine })) })).catch(() => {});
     if (p.mission) p.session.send({ t: 'mission', mission: p.mission });
+    this.housing.sendHomes(p);
+    this.housing.sendParties(p);
   }
 
   async removePlayer(p: Player, reason = 'disconnect') {
     if (this.players.get(p.id) !== p) return;
     if (p.vehicleId) this.exitVehicle(p, true);
+    this.housing.leaveAll(p);
     combat.returnClipsToInventory(this, p).catch(() => {});
     if (p.jobVehicleId) this.vehicles.delete(p.jobVehicleId);
     this.players.delete(p.id);
@@ -221,6 +228,7 @@ export class GameWorld {
       case 'history': return economy.onHistory(this, p);
       case 'clothing': return economy.onClothing(this, p, m);
       case 'heal': return economy.onHeal(this, p);
+      case 'housing': return this.housing.handle(p, m);
       case 'calls': return jobs.onCalls(this, p);
       case 'job_join': return jobs.onJoin(this, p, m);
       case 'job_quit': return jobs.onQuit(this, p);
@@ -280,7 +288,23 @@ export class GameWorld {
   addOwnedVehicle(row: any): Vehicle {
     const v = this.addVehicle({ kind: 'owned', model: row.model, x: row.x, y: row.y, rot: row.rot, locked: row.locked, color: row.color, plate: row.plate });
     v.dbId = row.id; v.ownerCharId = row.owner_id; v.fuel = Math.min(row.fuel, VEHICLES[row.model].fuelCapacity); v.engine = row.engine;
+    if (this.map.circleBlocked(v.x, v.y, VEHICLES[v.model].width / 2)) {
+      const spot = this.nearestRoad(v.x, v.y);
+      v.x = spot.x; v.y = spot.y;
+    }
     return v;
+  }
+
+  /** Nearest open road tile centre to (x, y) — used to rescue vehicles stranded by map changes. */
+  nearestRoad(x: number, y: number) {
+    const T = this.map.data.tileSize;
+    for (let r = 0; r < 40; r++)
+      for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const px = (Math.floor(x / T) + dx + 0.5) * T, py = (Math.floor(y / T) + dy + 0.5) * T;
+        if (this.map.isRoad(px, py) && !this.map.circleBlocked(px, py, 20)) return { x: px, y: py };
+      }
+    return this.map.data.spawns.default;
   }
 
   hasKey(p: Player, v: Vehicle) {
@@ -498,6 +522,7 @@ export class GameWorld {
     for (const [id, it] of this.pickups) if (now > it.expiresAt) this.pickups.delete(id);
     npcs.update(this, dt);
     jobs.update(this);
+    this.housing.update();
     if (now - this.lastSalaryAt >= ECONOMY.salaryIntervalMs) { this.lastSalaryAt = now; economy.paySalaries(this).catch(e => this.log('salary', e)); }
   }
 

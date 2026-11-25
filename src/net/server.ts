@@ -10,7 +10,7 @@ import { migrate } from '../db/migrate.ts';
 import type { Session } from '../game/types.ts';
 import { wire } from '../game/i18n.ts';
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 const MAX_MESSAGE_BYTES = 8 * 1024;
 const RATE_PER_SEC = 60;
 const RATE_BURST = 120;
@@ -55,7 +55,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       send(msg) { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); },
       close(code = 1000, reason = '') { try { ws.close(code, reason); } catch { /* already closed */ } },
     };
-    session.send({ t: 'welcome', version: PROTOCOL_VERSION, catalog: catalog(), world: { name: 'Utopia City', district: 'district1' }, serverTime: Date.now() });
+    session.send({ t: 'welcome', version: PROTOCOL_VERSION, catalog: catalog(), world: { name: 'Utopia City', district: 'district1', version: world.map.data.version ?? 1 }, serverTime: Date.now() });
 
     const authLimited = () => {
       const now = Date.now();

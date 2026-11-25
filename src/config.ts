@@ -20,7 +20,8 @@ export const config = {
   sessionTtlHours: Number(process.env.SESSION_TTL_HOURS ?? 168),
   // Login/register attempts allowed per IP per minute (raise only for local load tests).
   authAttemptsPerMinute: Number(process.env.AUTH_RATE_PER_MIN ?? 10),
-  worldPath: process.env.WORLD_PATH ?? resolve(ROOT, '..', 'shared', 'world', 'district1.json'),
+  // The server ships its own copy (server/world) so it can be deployed without the rest of the repo.
+  worldPath: process.env.WORLD_PATH ?? (existsSync(resolve(ROOT, 'world', 'district1.json')) ? resolve(ROOT, 'world', 'district1.json') : resolve(ROOT, '..', 'shared', 'world', 'district1.json')),
   tickRate: 20,
   snapshotRate: 15,
   interestRadius: 1400,

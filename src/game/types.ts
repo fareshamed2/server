@@ -59,6 +59,7 @@ export interface Player {
   dirtyStats: boolean;
   lastChatAt: number;
   invulnerableUntil: number;
+  lastRestAt?: number;
 }
 
 export type VehicleKind = 'owned' | 'job' | 'public' | 'traffic';
